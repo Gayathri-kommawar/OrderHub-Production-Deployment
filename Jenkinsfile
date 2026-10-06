@@ -24,10 +24,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    def shortCommit = bat(
-                        script: '@git rev-parse --short HEAD',
-                        returnStdout: true
-                    ).trim()
+                    def shortCommit = env.GIT_COMMIT.take(7)
 
                     env.SHORT_COMMIT = shortCommit
                     env.IMAGE_TAG = "${env.BUILD_NUMBER}-${shortCommit}"
@@ -52,6 +49,15 @@ pipeline {
 
         stage('Push Image') {
             steps {
-                bat """
-                    docker pus
+                bat "docker push ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+            }
+        }
+    }
+
+    post {
+        always {
+            bat "docker rm -f orderhub-test-${BUILD_NUMBER} 2>NUL || exit /b 0"
+        }
+    }
+}
 
