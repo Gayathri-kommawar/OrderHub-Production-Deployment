@@ -63,6 +63,17 @@ pipeline {
                 bat "docker push ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
             }
         }
+
+        stage('Approval') {
+            steps {
+                script {
+                    input(
+                        message: "Approve deployment of ${IMAGE_NAME}:${IMAGE_TAG} to PRODUCTION?",
+                        ok: "Deploy"
+                    )
+                }
+            }
+        }
     }
 
     post {
