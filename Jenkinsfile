@@ -2,9 +2,15 @@ pipeline {
 
     agent any
 
+    options {
+        disableConcurrentBuilds()
+    }
+
     environment {
         REGISTRY = "localhost:5000"
         IMAGE_NAME = "orderhub"
+        PROD_CONTAINER = "orderhub-prod"
+        PROD_PORT = "8080"
     }
 
     stages {
@@ -40,7 +46,6 @@ pipeline {
         stage('Test Docker Image') {
             steps {
                 script {
-
                     def containerName = "orderhub-test-${env.BUILD_NUMBER}"
 
                     bat """
@@ -74,11 +79,76 @@ pipeline {
                 }
             }
         }
+
+        stage('Deploy') {
+            steps {
+                script {
+
+                    echo "Deploying exact immutable image:"
+                    echo "${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+
+                    bat """
+                        docker pull ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+                    """
+
+                    bat """
+                        docker rm -f ${PROD_CONTAINER} 2>NUL || exit /b 0
+                    """
+
+                    bat """
+                        docker run -d --name ${PROD_CONTAINER} -p ${PROD_PORT}:8080 ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+                    """
+
+                    powershell '''
+                        Start-Sleep -Seconds 10
+                    '''
+
+                    bat """
+                        docker ps --filter "name=${PROD_CONTAINER}"
+                    """
+
+                    bat """
+                        docker inspect --format="{{.Config.Image}}" ${PROD_CONTAINER}
+                    """
+                }
+            }
+        }
+
+        stage('Smoke Test') {
+            steps {
+
+                bat """
+                    curl.exe -f http://localhost:${PROD_PORT}/health
+                """
+
+                bat """
+                    curl.exe -f http://localhost:${PROD_PORT}/
+                """
+
+                bat """
+                    curl.exe -f http://localhost:${PROD_PORT}/orders
+                """
+
+                bat """
+                    curl.exe -f http://localhost:${PROD_PORT}/version
+                """
+            }
+        }
     }
 
     post {
+
         always {
             bat "docker rm -f orderhub-test-${BUILD_NUMBER} 2>NUL || exit /b 0"
+        }
+
+        success {
+            echo "OrderHub deployment completed successfully."
+            echo "Production image: ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+        }
+
+        failure {
+            echo "OrderHub deployment failed."
         }
     }
 }
