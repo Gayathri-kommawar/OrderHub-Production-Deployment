@@ -39,11 +39,22 @@ pipeline {
 
         stage('Test Docker Image') {
             steps {
-                bat """
-                    docker run -d --name orderhub-test-${BUILD_NUMBER} -p 18080:8080 ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
-                    timeout /t 5 /nobreak
-                    curl.exe -f http://localhost:18080/health
-                """
+                script {
+
+                    def containerName = "orderhub-test-${env.BUILD_NUMBER}"
+
+                    bat """
+                        docker run -d --name ${containerName} -p 18080:8080 ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+                    """
+
+                    powershell '''
+                        Start-Sleep -Seconds 10
+                    '''
+
+                    bat """
+                        curl.exe -f http://localhost:18080/health
+                    """
+                }
             }
         }
 
